@@ -134,25 +134,33 @@ class INA219:
             value -= 65535
         return value * self._power_lsb
 
+    def calculate_life(self, battery_capacity, device_ma):
+        battery_life_hours = battery_capacity / device_ma
+        hours = int(battery_life_hours)
+        minutes = int((battery_life_hours - hours) * 60)
 
+        if hours > 0:
+            if minutes > 0:
+                return f"{hours}hr {minutes}min"
+            else:
+                return f"{hours}hr(s)"
+        else:
+            return f"{minutes}min(s)"
 
-class WaveshareBattery(plugins.Plugin):
-    __author__ = 'https://github.com/leopascal1'
-    __version__ = '1.0.0'
+class waveshareups(plugins.Plugin):
+    __author__ = 'https://github.com/leopascal1, https://github.com/Shreyas-ITB'
+    __version__ = '1.0.1'
     __license__ = 'GPL3'
-    __description__ = 'battery in percentage (Waveshare UPS HAT (C) for RP Zero)'
+    __description__ = 'battery in percentage (Waveshare UPS HAT (C) for RP Zero) with some additional added information and safety'
 
     
     def __init__(self):
         self.loaded = False
         self.bat = None
         self.addr = 0x43
-        self._black = 0x00
+        self._black = 0xFF
     def on_loaded(self):
         #load plugin stuff
-
-        if 'invert' in pwnagotchi.config['ui'] and pwnagotchi.config['ui']['invert'] == 1 or BLACK == 0xFF:
-                    self._black = 0xFF
         
         #if toml allows it
         if 'address' in self.options:
@@ -160,27 +168,29 @@ class WaveshareBattery(plugins.Plugin):
         
         self.loaded = True
         self.bat = INA219(addr=self.addr)
-        logging.info("Battery Plugin loaded.")
+        logging.info("[waveshareups] Battery Plugin loaded.")
 
     
     def on_ui_setup(self, ui):
-        if self.loaded is False:
-            return
-        logging.debug("Battery Plugin UI Setup starting.")
-
-        ui.add_element('ups', LabeledValue(color=self._black, label='UPS', value='-', position=(ui.width() / 2 + 15, 0),
+        logging.debug("[waveshareups] Battery Plugin UI Setup starting.")
+        ui.add_element('ups', LabeledValue(color=self._black, label='UPS', value='-', position=(int(self.options["ups_x_coord"]), int(self.options["ups_y_coord"])),
                                            label_font=fonts.Bold, text_font=fonts.Medium))
-        logging.debug("Battery Plugin UI Setup finished OK.")
+        ui.add_element('pwr', LabeledValue(color=self._black, label='PWR', value='-', position=(int(self.options["pwr_x_coord"]), int(self.options["pwr_y_coord"])),
+                                           label_font=fonts.Bold, text_font=fonts.Medium))
+        logging.debug("[waveshareups] Battery Plugin UI Setup finished OK.")
     
     def on_ui_update(self, ui):
-        if self.loaded is False:
-            return
-            
-        
         bus_voltage = self.bat.getBusVoltage_V()
         p = (bus_voltage - 3)/1.2*100
         if(p > 100):p = 100
         if(p < 0):p = 0
         ui.set('ups', "{:02d}%".format(int(p)))
 
+        life = self.bat.calculate_life(self.options['battery_capacity'], self.bat.getCurrent_mA())
+        ui.set('pwr', str(life))
 
+        if p <= self.options['shutdown']:
+            logging.info('[waveshareups] Empty battery (<= %s%%): shutting down..' % self.options['shutdown'])
+            ui.update(force=True, new_data={'status': 'Battery exhausted, bye ...'})
+            time.sleep(5)
+            pwnagotchi.shutdown()
