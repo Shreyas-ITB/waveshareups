@@ -1,7 +1,7 @@
 # waveshareupsbattery
 Waveshare UPS Hat (C) for Raspberry PI Zero Plugin
 
-A plugin for a battery display in percentage
+A pwnagotchi plugin for a battery display in percentage
 
 UPS HAT FROM WAVESHARE:
 https://www.waveshare.com/ups-hat-c.htm
@@ -25,9 +25,15 @@ You can also save the python file in /usr/local/share/pwnagotchi/installed-plugi
 and add the following line to config.toml in /etc/pwnagotchi/: "main.plugins.wavesharebattery.enabled = true". 
 The battery typically lasts around 2.5-3 hours and charges quickly.
 
-
-
-
-
-
-
+----------------------------------------
+- Configuration
+-- Under ``config.toml``
+  ```
+  main.plugins.waveshareups.enabled = true
+  main.plugins.waveshareups.shutdown = 15 # shuts down at 15 percent battery
+  main.plugins.waveshareups.pwr_x_coord = 140
+  main.plugins.waveshareups.pwr_y_coord = 0
+  main.plugins.waveshareups.ups_x_coord = 140
+  main.plugins.waveshareups.ups_y_coord = 0
+  main.plugins.waveshareups.battery_capacity = 1000 # in mah (milli amp hours)
+  ```
