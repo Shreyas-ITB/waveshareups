@@ -134,18 +134,13 @@ class INA219:
             value -= 65535
         return value * self._power_lsb
 
-    def calculate_life(self, battery_capacity, device_ma):
-        battery_life_hours = battery_capacity / device_ma
-        hours = int(battery_life_hours)
-        minutes = int((battery_life_hours - hours) * 60)
-
-        if hours > 0:
-            if minutes > 0:
-                return f"{hours}hr {minutes}min"
-            else:
-                return f"{hours}hr(s)"
-        else:
-            return f"{minutes}min(s)"
+    def check_battery_shutdown(battery_percentage, shutdown_threshold, delay_seconds=5):
+        start_time = time.time()
+        while time.time() - start_time < delay_seconds:
+            if battery_percentage > shutdown_threshold:
+                return False
+            time.sleep(1)
+        return True
 
 class waveshareups(plugins.Plugin):
     __author__ = 'https://github.com/leopascal1, https://github.com/Shreyas-ITB'
@@ -175,7 +170,7 @@ class waveshareups(plugins.Plugin):
         logging.debug("[waveshareups] Battery Plugin UI Setup starting.")
         ui.add_element('ups', LabeledValue(color=self._black, label='UPS', value='-', position=(int(self.options["ups_x_coord"]), int(self.options["ups_y_coord"])),
                                            label_font=fonts.Bold, text_font=fonts.Medium))
-        ui.add_element('pwr', LabeledValue(color=self._black, label='PWR', value='-', position=(int(self.options["pwr_x_coord"]), int(self.options["pwr_y_coord"])),
+        ui.add_element('volt', LabeledValue(color=self._black, label='VOL', value='-', position=(int(self.options["vol_x_coord"]), int(self.options["vol_y_coord"])),
                                            label_font=fonts.Bold, text_font=fonts.Medium))
         logging.debug("[waveshareups] Battery Plugin UI Setup finished OK.")
     
@@ -186,11 +181,15 @@ class waveshareups(plugins.Plugin):
         if(p < 0):p = 0
         ui.set('ups', "{:02d}%".format(int(p)))
 
-        life = self.bat.calculate_life(self.options['battery_capacity'], self.bat.getCurrent_mA())
-        ui.set('pwr', str(life))
+        voltage = self.bat.getBusVoltage_V()
+        ui.set('volt', "{:.2f}v".format(voltage))
 
         if p <= self.options['shutdown']:
-            logging.info('[waveshareups] Empty battery (<= %s%%): shutting down..' % self.options['shutdown'])
-            ui.update(force=True, new_data={'status': 'Battery exhausted, bye ...'})
-            time.sleep(5)
-            pwnagotchi.shutdown()
+            logging.info('[waveshareups] Battery at or below shutdown threshold (<= %s%%): checking for sustained low battery..' % self.options['shutdown'])
+            if self.bat.check_battery_shutdown(p, self.options['shutdown']):
+                logging.info('[waveshareups] Empty battery (<= %s%%): shutting down..' % self.options['shutdown'])
+                ui.update(force=True, new_data={'status': 'Battery exhausted, bye ...'})
+                time.sleep(5)
+                pwnagotchi.shutdown()
+            else:
+                logging.info('[waveshareups] Battery level recovered, shutdown aborted.')
